@@ -1,9 +1,10 @@
 # baby's first brainfuck (bf) compiler
-#
+# 
+# by thomask-m
 from enum import auto, Enum
 import platform
 import sys
-from typing import List, Optional
+from typing import List
 
 class Action(Enum):
     NO_OP = auto()
@@ -24,7 +25,7 @@ BF_TOKENS = {
     '.': Action.OUTPUT, # output the character signified by the cell at the pointer
     ',': Action.INPUT, # input a character and store it in the cell at the pointer
     '[': Action.COND_JUMP_PAST, # jump past the matching ] if the cell at the pointer is 0
-    ']': Action.COND_JUMP_BACK,  # jump back to the mathing [ if the cell at the pointer is nonzero
+    ']': Action.COND_JUMP_BACK,  # jump back to the matching [ if the cell at the pointer is nonzero
 }
 
 NEWLINE_CHARS = set([
@@ -38,18 +39,70 @@ HELLO_WORLD_BF_PROG = """+++++++++++[>++++++>+++++++++>++++++++>++++>+++>+<<<<<<
 """
 
 # Original implementation kept an array of size 30_000 for memory cell
-MEMORY_CELL = [0] * 30_000
+NUM_CELLS = 30_000
+MEMORY = [0] * NUM_CELLS
+MEMORY_POINTER = 0
 
 # TODO(1): check windows in order to handle \r\n newline breaks
 IS_WINDOWS = platform.system() == "Windows"
 
+
+class Error():
+    def __init__(self, message: str):
+        self.message = message
+
+    def __repr__(self):
+        return f"Error: {self.message}"
+
+class Command:
+    def __init__(self, action: Action, metadata: ActionMetadata | None):
+        self.action = action
+        self.metadata = metadata
+
+    def __repr__(self):
+        return f"Action: {self.action}, Metadata: {self.metadata}"
+
+    def eval(self, command_index: int) -> Error | int:
+        global MEMORY_POINTER
+        if self.action == Action.MOVE_RIGHT:
+            MEMORY_POINTER += 1
+            if MEMORY_POINTER >= NUM_CELLS:
+                return Error(f"Memory pointer moved past the number of allocated cells set at {NUM_CELLS}")
+        elif self.action == Action.MOVE_LEFT:
+            MEMORY_POINTER -= 1
+            if MEMORY_POINTER < 0:
+                return Error("Memory pointer moved below zero")
+        elif self.action == Action.INCREMENT:
+            MEMORY[MEMORY_POINTER] += 1
+        elif self.action == Action.DECREMENT:
+            MEMORY[MEMORY_POINTER] -= 1
+        elif self.action == Action.OUTPUT:
+            print(chr(MEMORY[MEMORY_POINTER]), end="")
+        elif self.action == Action.INPUT:
+            return Error("INPUT command not yet supported!")
+        elif self.action == Action.COND_JUMP_PAST:
+            if MEMORY[MEMORY_POINTER] == 0:
+                return self.metadata.potential_goto + 1
+        elif self.action == Action.COND_JUMP_BACK:
+            if MEMORY[MEMORY_POINTER] != 0:
+                return self.metadata.potential_goto + 1
+        return command_index + 1
+
+class ActionMetadata:
+    def __init__(self, potential_goto: int):
+        self.potential_goto = potential_goto
+
+    def update_potential_goto(self, potential_goto: int):
+        self.potential_goto = potential_goto
+
 def tokenize(c: str) -> Action:
     return BF_TOKENS.get(c, Action.NO_OP)
 
-def program_has_matching_brackets(prog: str) -> Optional[List[Action]]:
+def program_has_matching_brackets(prog: str) -> Error | List[Command]:
     current_line_number, current_column_pos = 1, 0
     validate_matching_brackets = []
-    actions = []
+    command_index = 0
+    commands = []
     for c in prog:
         if c in NEWLINE_CHARS:
             current_line_number += 1
@@ -60,26 +113,48 @@ def program_has_matching_brackets(prog: str) -> Optional[List[Action]]:
             continue
 
         if action == Action.COND_JUMP_PAST:
-            validate_matching_brackets.append((current_line_number, current_column_pos))
-        if action == Action.COND_JUMP_BACK:
+            validate_matching_brackets.append((current_line_number, current_column_pos, command_index))
+            commands.append(Command(action, ActionMetadata(-1)))
+
+        elif action == Action.COND_JUMP_BACK:
             try:
-                validate_matching_brackets.pop()
+                _, _, right_bracket_goto = validate_matching_brackets.pop()
+                commands.append(Command(action, ActionMetadata(right_bracket_goto)))
+                command_to_update = commands[right_bracket_goto]
+                left_bracket_metadata = command_to_update.metadata
+                assert left_bracket_metadata is not None, "we should not reach this line"
+                left_bracket_metadata.update_potential_goto(command_index)
             except IndexError:
-                print(f"Unmatched ] error: line {current_line_number}, position: {current_column_pos}", file=sys.stderr)
-                return None
-        actions.append(action)
+                return Error(f"Unmatched ] error: line {current_line_number}, position: {current_column_pos}")
+        else:
+            commands.append(Command(action, None))
+        command_index += 1
     if len(validate_matching_brackets) > 0:
         for unmatched_bracket_data in reversed(validate_matching_brackets):
             line_num, position = unmatched_bracket_data
-            print(f"Unmatched [ error: line {line_num}, position: {position}", file=sys.stderr)
-            return None
-    return actions
+            return Error(f"Unmatched [ error: line {line_num}, position: {position}")
+    return commands
+
+def evaluate_program(prog: List[Command]) -> Error | None:
+    command_index = 0
+    prog_length = len(prog)
+    while command_index < prog_length:
+        command = prog[command_index]
+        result = command.eval(command_index)
+        if not isinstance(result, int):
+            return Error(f"Runtime error: {result}")
+        command_index = result
+    return None
 
 def main():
-    actions = program_has_matching_brackets(HELLO_WORLD_BF_PROG) 
-    assert actions is not None, "Program contains a syntax error"
+    commands = program_has_matching_brackets(HELLO_WORLD_BF_PROG) 
+    if not isinstance(commands, List):
+        print(f"Program contains a matching brackets error:\n {commands}", file=sys.stderr)
 
-    assert 1 == 0, "Delete me once I'm implemented"
+    result = evaluate_program(commands)
+    if result is not None:
+        print(f"Program failed:\n {result}", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
