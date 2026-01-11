@@ -57,6 +57,13 @@ class Error():
     def __repr__(self):
         return f"Error: {self.message}"
 
+class ActionMetadata:
+    def __init__(self, potential_goto: int):
+        self.potential_goto = potential_goto
+
+    def update_potential_goto(self, potential_goto: int):
+        self.potential_goto = potential_goto
+
 class Command:
     def __init__(self, action: Action, metadata: ActionMetadata | None):
         self.action = action
@@ -90,13 +97,6 @@ class Command:
             if MEMORY[MEMORY_POINTER] != 0:
                 return self.metadata.potential_goto + 1
         return command_index + 1
-
-class ActionMetadata:
-    def __init__(self, potential_goto: int):
-        self.potential_goto = potential_goto
-
-    def update_potential_goto(self, potential_goto: int):
-        self.potential_goto = potential_goto
 
 def tokenize(c: str) -> Action:
     return BF_TOKENS.get(c, Action.NO_OP)
