@@ -1,6 +1,9 @@
 # baby's first brainfuck (bf) compiler
 # 
 # by thomask-m
+# 
+# currently, it is really more like "program evaluator" rather than a compiler :P
+# 
 from enum import auto, Enum
 import platform
 import sys
