@@ -108,47 +108,45 @@ class Checker:
         return commands
 
 class Evaluator:
-    # Original implementation kept an array of size 30_000 for memory cell
-    NUM_CELLS = 30_000
-    MEMORY = [0] * NUM_CELLS
-    MEMORY_POINTER = 0
+    def __init__(self, num_cells: int):
+        self._num_cells = num_cells
+        self._memory = [0] * self._num_cells
+        self._memory_pointer = 0
 
-    @classmethod
-    def _eval(cls, command: Command, command_index: int) -> Error | int:
+    def _eval(self, command: Command, command_index: int) -> Error | int:
         """
         Takes a Command and an index, which is used to calculate the "next" index.
         """
         if command.action == Action.MOVE_RIGHT:
-            cls.MEMORY_POINTER += 1
-            if cls.MEMORY_POINTER >= cls.NUM_CELLS:
-                return Error(f"Memory pointer moved past the number of allocated cells set at {NUM_CELLS}")
+            self._memory_pointer += 1
+            if self._memory_pointer >= self._num_cells:
+                return Error(f"Memory pointer moved past the number of allocated cells set at {self._num_cells}")
         elif command.action == Action.MOVE_LEFT:
-            cls.MEMORY_POINTER -= 1
-            if cls.MEMORY_POINTER < 0:
+            self._memory_pointer -= 1
+            if self._memory_pointer < 0:
                 return Error("Memory pointer moved below zero")
         elif command.action == Action.INCREMENT:
-            cls.MEMORY[cls.MEMORY_POINTER] += 1
+            self._memory[self._memory_pointer] += 1
         elif command.action == Action.DECREMENT:
-            cls.MEMORY[cls.MEMORY_POINTER] -= 1
+            self._memory[self._memory_pointer] -= 1
         elif command.action == Action.OUTPUT:
-            print(chr(cls.MEMORY[cls.MEMORY_POINTER]), end="")
+            print(chr(self._memory[self._memory_pointer]), end="")
         elif command.action == Action.INPUT:
             return Error("INPUT command not yet supported!")
         elif command.action == Action.COND_JUMP_PAST:
-            if cls.MEMORY[cls.MEMORY_POINTER] == 0:
+            if self._memory[self._memory_pointer] == 0:
                 return command.metadata.potential_goto + 1
         elif command.action == Action.COND_JUMP_BACK:
-            if cls.MEMORY[cls.MEMORY_POINTER] != 0:
+            if self._memory[self._memory_pointer] != 0:
                 return command.metadata.potential_goto + 1
         return command_index + 1
 
-    @classmethod
-    def run(cls, prog: List[Command]) -> Error | None:
+    def run(self, prog: List[Command]) -> Error | None:
         command_index = 0
         prog_length = len(prog)
         while command_index < prog_length:
             command = prog[command_index]
-            result = cls._eval(command, command_index)
+            result = self._eval(command, command_index)
             if not isinstance(result, int):
                 return Error(f"Runtime error > {result}")
             command_index = result
@@ -160,7 +158,9 @@ def main():
         print(f"Program contains a matching brackets error:\n {commands}", file=sys.stderr)
         sys.exit(1)
 
-    result = Evaluator.run(commands)
+    # Original implementation kept an array of size 30_000 for memory cell
+    num_cells = 30_000
+    result = Evaluator(num_cells).run(commands)
     if result is not None:
         print(f"Program failed:\n {result}", file=sys.stderr)
 
