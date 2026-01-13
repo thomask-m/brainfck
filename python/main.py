@@ -99,10 +99,11 @@ class Command:
                 return self.metadata.potential_goto + 1
         return command_index + 1
 
-def tokenize(c: str) -> Action:
-    return BF_TOKENS.get(c, Action.NO_OP)
-
 class Checker:
+    @classmethod
+    def tokenize(cls, command: str) -> Action:
+        return BF_TOKENS.get(command, Action.NO_OP)
+
     @classmethod
     def has_matching_brackets(cls, program: str) -> Error | List[Command]:
         current_line_number, current_column_pos = 1, 0
@@ -113,7 +114,7 @@ class Checker:
             if c in NEWLINE_CHARS:
                 current_line_number += 1
                 current_column_pos = 0
-            action = tokenize(c)
+            action = cls.tokenize(c)
             current_column_pos += 1
             if action == Action.NO_OP:
                 continue
@@ -140,6 +141,17 @@ class Checker:
                 return Error(f"Unmatched [ error: line {line_num}, position: {position}")
         return commands
 
+ 
+def evaluate_program(prog: List[Command]) -> Error | None:
+    command_index = 0
+    prog_length = len(prog)
+    while command_index < prog_length:
+        command = prog[command_index]
+        result = command.eval(command_index)
+        if not isinstance(result, int):
+            return Error(f"Runtime error > {result}")
+        command_index = result
+    return None
 
 def main():
     commands = Checker.has_matching_brackets(HELLO_WORLD_BF_PROG) 
