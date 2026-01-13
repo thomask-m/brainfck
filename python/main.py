@@ -9,18 +9,25 @@ import platform
 import sys
 from typing import List
 
+
+# Prints out "Hello, World!". Bona-fide brainfuck code.
+HELLO_WORLD_BF_PROG = """+++++++++++[>++++++>+++++++++>++++++++>++++>+++>+<<<<<<-]>+++
++++.>++.+++++++..+++.>>.>-.<<-.<.+++.------.--------.>>>+.>-.
+"""
+# TODO(1): check windows in order to handle \r\n newline breaks
+IS_WINDOWS = platform.system() == "Windows"
 NEWLINE_CHARS = set([
     # '\r\n', see TODO(1)
     '\n',
     '\r',
 ])
 
-HELLO_WORLD_BF_PROG = """+++++++++++[>++++++>+++++++++>++++++++>++++>+++>+<<<<<<-]>+++
-+++.>++.+++++++..+++.>>.>-.<<-.<.+++.------.--------.>>>+.>-.
-"""
-# TODO(1): check windows in order to handle \r\n newline breaks
-IS_WINDOWS = platform.system() == "Windows"
+class Error():
+    def __init__(self, message: str):
+        self.message = message
 
+    def __repr__(self):
+        return f"{self.message}"
 
 class Action(Enum):
     NO_OP = auto()
@@ -33,24 +40,20 @@ class Action(Enum):
     COND_JUMP_PAST = auto()
     COND_JUMP_BACK = auto()
 
-BF_TOKENS = {
-    '>': Action.MOVE_RIGHT, # move the pointer to the right
-    '<': Action.MOVE_LEFT, # move the pointer to the left
-    '+': Action.INCREMENT, # increment the memory cell at the pointer
-    '-': Action.DECREMENT, # decrement the memory cell at the pointer
-    '.': Action.OUTPUT, # output the character signified by the cell at the pointer
-    # TODO(2): implement input command
-    ',': Action.INPUT, # input a character and store it in the cell at the pointer
-    '[': Action.COND_JUMP_PAST, # jump past the matching ] if the cell at the pointer is 0
-    ']': Action.COND_JUMP_BACK,  # jump back to the matching [ if the cell at the pointer is nonzero
-}
-
-class Error():
-    def __init__(self, message: str):
-        self.message = message
-
-    def __repr__(self):
-        return f"{self.message}"
+    @classmethod
+    def from_command_symbol(cls, symbol: str):
+        symbol_to_action = {
+            '>': Action.MOVE_RIGHT, # move the pointer to the right
+            '<': Action.MOVE_LEFT, # move the pointer to the left
+            '+': Action.INCREMENT, # increment the memory cell at the pointer
+            '-': Action.DECREMENT, # decrement the memory cell at the pointer
+            '.': Action.OUTPUT, # output the character signified by the cell at the pointer
+            # TODO(2): implement input command
+            ',': Action.INPUT, # input a character and store it in the cell at the pointer
+            '[': Action.COND_JUMP_PAST, # jump past the matching ] if the cell at the pointer is 0
+            ']': Action.COND_JUMP_BACK,  # jump back to the matching [ if the cell at the pointer is nonzero
+        }
+        return symbol_to_action.get(symbol, Action.NO_OP)
 
 class ActionMetadata:
     def __init__(self, potential_goto: int):
@@ -69,10 +72,6 @@ class Command:
 
 class Checker:
     @classmethod
-    def tokenize(cls, command: str) -> Action:
-        return BF_TOKENS.get(command, Action.NO_OP)
-
-    @classmethod
     def has_matching_brackets(cls, program: str) -> Error | List[Command]:
         current_line_number, current_column_pos = 1, 0
         validate_matching_brackets = []
@@ -82,7 +81,7 @@ class Checker:
             if c in NEWLINE_CHARS:
                 current_line_number += 1
                 current_column_pos = 0
-            action = cls.tokenize(c)
+            action = Action.from_command_symbol(c)
             current_column_pos += 1
             if action == Action.NO_OP:
                 continue
