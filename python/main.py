@@ -9,6 +9,19 @@ import platform
 import sys
 from typing import List
 
+NEWLINE_CHARS = set([
+    # '\r\n', see TODO(1)
+    '\n',
+    '\r',
+])
+
+HELLO_WORLD_BF_PROG = """+++++++++++[>++++++>+++++++++>++++++++>++++>+++>+<<<<<<-]>+++
++++.>++.+++++++..+++.>>.>-.<<-.<.+++.------.--------.>>>+.>-.
+"""
+# TODO(1): check windows in order to handle \r\n newline breaks
+IS_WINDOWS = platform.system() == "Windows"
+
+
 class Action(Enum):
     NO_OP = auto()
     MOVE_RIGHT = auto()
@@ -32,25 +45,6 @@ BF_TOKENS = {
     ']': Action.COND_JUMP_BACK,  # jump back to the matching [ if the cell at the pointer is nonzero
 }
 
-NEWLINE_CHARS = set([
-    # '\r\n', see TODO(1)
-    '\n',
-    '\r',
-])
-
-HELLO_WORLD_BF_PROG = """+++++++++++[>++++++>+++++++++>++++++++>++++>+++>+<<<<<<-]>+++
-+++.>++.+++++++..+++.>>.>-.<<-.<.+++.------.--------.>>>+.>-.
-"""
-
-# Original implementation kept an array of size 30_000 for memory cell
-NUM_CELLS = 30_000
-MEMORY = [0] * NUM_CELLS
-MEMORY_POINTER = 0
-
-# TODO(1): check windows in order to handle \r\n newline breaks
-IS_WINDOWS = platform.system() == "Windows"
-
-
 class Error():
     def __init__(self, message: str):
         self.message = message
@@ -72,32 +66,6 @@ class Command:
 
     def __repr__(self):
         return f"Action: {self.action}, Metadata: {self.metadata}"
-
-    def eval(self, command_index: int) -> Error | int:
-        global MEMORY_POINTER
-        if self.action == Action.MOVE_RIGHT:
-            MEMORY_POINTER += 1
-            if MEMORY_POINTER >= NUM_CELLS:
-                return Error(f"Memory pointer moved past the number of allocated cells set at {NUM_CELLS}")
-        elif self.action == Action.MOVE_LEFT:
-            MEMORY_POINTER -= 1
-            if MEMORY_POINTER < 0:
-                return Error("Memory pointer moved below zero")
-        elif self.action == Action.INCREMENT:
-            MEMORY[MEMORY_POINTER] += 1
-        elif self.action == Action.DECREMENT:
-            MEMORY[MEMORY_POINTER] -= 1
-        elif self.action == Action.OUTPUT:
-            print(chr(MEMORY[MEMORY_POINTER]), end="")
-        elif self.action == Action.INPUT:
-            return Error("INPUT command not yet supported!")
-        elif self.action == Action.COND_JUMP_PAST:
-            if MEMORY[MEMORY_POINTER] == 0:
-                return self.metadata.potential_goto + 1
-        elif self.action == Action.COND_JUMP_BACK:
-            if MEMORY[MEMORY_POINTER] != 0:
-                return self.metadata.potential_goto + 1
-        return command_index + 1
 
 class Checker:
     @classmethod
@@ -141,13 +109,47 @@ class Checker:
         return commands
 
 class Evaluator:
+    # Original implementation kept an array of size 30_000 for memory cell
+    NUM_CELLS = 30_000
+    MEMORY = [0] * NUM_CELLS
+    MEMORY_POINTER = 0
+
+    @classmethod
+    def _eval(cls, command: Command, command_index: int) -> Error | int:
+        """
+        Takes a Command and an index, which is used to calculate the "next" index.
+        """
+        if command.action == Action.MOVE_RIGHT:
+            cls.MEMORY_POINTER += 1
+            if cls.MEMORY_POINTER >= cls.NUM_CELLS:
+                return Error(f"Memory pointer moved past the number of allocated cells set at {NUM_CELLS}")
+        elif command.action == Action.MOVE_LEFT:
+            cls.MEMORY_POINTER -= 1
+            if cls.MEMORY_POINTER < 0:
+                return Error("Memory pointer moved below zero")
+        elif command.action == Action.INCREMENT:
+            cls.MEMORY[cls.MEMORY_POINTER] += 1
+        elif command.action == Action.DECREMENT:
+            cls.MEMORY[cls.MEMORY_POINTER] -= 1
+        elif command.action == Action.OUTPUT:
+            print(chr(cls.MEMORY[cls.MEMORY_POINTER]), end="")
+        elif command.action == Action.INPUT:
+            return Error("INPUT command not yet supported!")
+        elif command.action == Action.COND_JUMP_PAST:
+            if cls.MEMORY[cls.MEMORY_POINTER] == 0:
+                return command.metadata.potential_goto + 1
+        elif command.action == Action.COND_JUMP_BACK:
+            if cls.MEMORY[cls.MEMORY_POINTER] != 0:
+                return command.metadata.potential_goto + 1
+        return command_index + 1
+
     @classmethod
     def run(cls, prog: List[Command]) -> Error | None:
         command_index = 0
         prog_length = len(prog)
         while command_index < prog_length:
             command = prog[command_index]
-            result = command.eval(command_index)
+            result = cls._eval(command, command_index)
             if not isinstance(result, int):
                 return Error(f"Runtime error > {result}")
             command_index = result
