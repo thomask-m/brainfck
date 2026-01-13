@@ -122,7 +122,6 @@ class Checker:
             if action == Action.COND_JUMP_PAST:
                 validate_matching_brackets.append((current_line_number, current_column_pos, command_index))
                 commands.append(Command(action, ActionMetadata(-1)))
-
             elif action == Action.COND_JUMP_BACK:
                 try:
                     _, _, right_bracket_goto = validate_matching_brackets.pop()
@@ -141,17 +140,18 @@ class Checker:
                 return Error(f"Unmatched [ error: line {line_num}, position: {position}")
         return commands
 
- 
-def evaluate_program(prog: List[Command]) -> Error | None:
-    command_index = 0
-    prog_length = len(prog)
-    while command_index < prog_length:
-        command = prog[command_index]
-        result = command.eval(command_index)
-        if not isinstance(result, int):
-            return Error(f"Runtime error > {result}")
-        command_index = result
-    return None
+class Evaluator:
+    @classmethod
+    def run(cls, prog: List[Command]) -> Error | None:
+        command_index = 0
+        prog_length = len(prog)
+        while command_index < prog_length:
+            command = prog[command_index]
+            result = command.eval(command_index)
+            if not isinstance(result, int):
+                return Error(f"Runtime error > {result}")
+            command_index = result
+        return None
 
 def main():
     commands = Checker.has_matching_brackets(HELLO_WORLD_BF_PROG) 
@@ -159,7 +159,7 @@ def main():
         print(f"Program contains a matching brackets error:\n {commands}", file=sys.stderr)
         sys.exit(1)
 
-    result = evaluate_program(commands)
+    result = Evaluator.run(commands)
     if result is not None:
         print(f"Program failed:\n {result}", file=sys.stderr)
 
