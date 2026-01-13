@@ -26,6 +26,7 @@ BF_TOKENS = {
     '+': Action.INCREMENT, # increment the memory cell at the pointer
     '-': Action.DECREMENT, # decrement the memory cell at the pointer
     '.': Action.OUTPUT, # output the character signified by the cell at the pointer
+    # TODO(2): implement input command
     ',': Action.INPUT, # input a character and store it in the cell at the pointer
     '[': Action.COND_JUMP_PAST, # jump past the matching ] if the cell at the pointer is 0
     ']': Action.COND_JUMP_BACK,  # jump back to the matching [ if the cell at the pointer is nonzero
@@ -55,7 +56,7 @@ class Error():
         self.message = message
 
     def __repr__(self):
-        return f"Error: {self.message}"
+        return f"{self.message}"
 
 class ActionMetadata:
     def __init__(self, potential_goto: int):
@@ -133,8 +134,7 @@ def program_has_matching_brackets(prog: str) -> Error | List[Command]:
             commands.append(Command(action, None))
         command_index += 1
     if len(validate_matching_brackets) > 0:
-        for unmatched_bracket_data in reversed(validate_matching_brackets):
-            line_num, position = unmatched_bracket_data
+        for line_num, position, _ in reversed(validate_matching_brackets):
             return Error(f"Unmatched [ error: line {line_num}, position: {position}")
     return commands
 
@@ -145,7 +145,7 @@ def evaluate_program(prog: List[Command]) -> Error | None:
         command = prog[command_index]
         result = command.eval(command_index)
         if not isinstance(result, int):
-            return Error(f"Runtime error: {result}")
+            return Error(f"Runtime error > {result}")
         command_index = result
     return None
 
@@ -153,6 +153,7 @@ def main():
     commands = program_has_matching_brackets(HELLO_WORLD_BF_PROG) 
     if not isinstance(commands, List):
         print(f"Program contains a matching brackets error:\n {commands}", file=sys.stderr)
+        sys.exit(1)
 
     result = evaluate_program(commands)
     if result is not None:
