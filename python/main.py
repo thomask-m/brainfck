@@ -102,55 +102,47 @@ class Command:
 def tokenize(c: str) -> Action:
     return BF_TOKENS.get(c, Action.NO_OP)
 
-def program_has_matching_brackets(prog: str) -> Error | List[Command]:
-    current_line_number, current_column_pos = 1, 0
-    validate_matching_brackets = []
-    command_index = 0
-    commands = []
-    for c in prog:
-        if c in NEWLINE_CHARS:
-            current_line_number += 1
-            current_column_pos = 0
-        action = tokenize(c)
-        current_column_pos += 1
-        if action == Action.NO_OP:
-            continue
+class Checker:
+    @classmethod
+    def has_matching_brackets(cls, program: str) -> Error | List[Command]:
+        current_line_number, current_column_pos = 1, 0
+        validate_matching_brackets = []
+        command_index = 0
+        commands = []
+        for c in program:
+            if c in NEWLINE_CHARS:
+                current_line_number += 1
+                current_column_pos = 0
+            action = tokenize(c)
+            current_column_pos += 1
+            if action == Action.NO_OP:
+                continue
 
-        if action == Action.COND_JUMP_PAST:
-            validate_matching_brackets.append((current_line_number, current_column_pos, command_index))
-            commands.append(Command(action, ActionMetadata(-1)))
+            if action == Action.COND_JUMP_PAST:
+                validate_matching_brackets.append((current_line_number, current_column_pos, command_index))
+                commands.append(Command(action, ActionMetadata(-1)))
 
-        elif action == Action.COND_JUMP_BACK:
-            try:
-                _, _, right_bracket_goto = validate_matching_brackets.pop()
-                commands.append(Command(action, ActionMetadata(right_bracket_goto)))
-                command_to_update = commands[right_bracket_goto]
-                left_bracket_metadata = command_to_update.metadata
-                assert left_bracket_metadata is not None, "we should not reach this line"
-                left_bracket_metadata.update_potential_goto(command_index)
-            except IndexError:
-                return Error(f"Unmatched ] error: line {current_line_number}, position: {current_column_pos}")
-        else:
-            commands.append(Command(action, None))
-        command_index += 1
-    if len(validate_matching_brackets) > 0:
-        for line_num, position, _ in reversed(validate_matching_brackets):
-            return Error(f"Unmatched [ error: line {line_num}, position: {position}")
-    return commands
+            elif action == Action.COND_JUMP_BACK:
+                try:
+                    _, _, right_bracket_goto = validate_matching_brackets.pop()
+                    commands.append(Command(action, ActionMetadata(right_bracket_goto)))
+                    command_to_update = commands[right_bracket_goto]
+                    left_bracket_metadata = command_to_update.metadata
+                    assert left_bracket_metadata is not None, "we should not reach this line"
+                    left_bracket_metadata.update_potential_goto(command_index)
+                except IndexError:
+                    return Error(f"Unmatched ] error: line {current_line_number}, position: {current_column_pos}")
+            else:
+                commands.append(Command(action, None))
+            command_index += 1
+        if len(validate_matching_brackets) > 0:
+            for line_num, position, _ in reversed(validate_matching_brackets):
+                return Error(f"Unmatched [ error: line {line_num}, position: {position}")
+        return commands
 
-def evaluate_program(prog: List[Command]) -> Error | None:
-    command_index = 0
-    prog_length = len(prog)
-    while command_index < prog_length:
-        command = prog[command_index]
-        result = command.eval(command_index)
-        if not isinstance(result, int):
-            return Error(f"Runtime error > {result}")
-        command_index = result
-    return None
 
 def main():
-    commands = program_has_matching_brackets(HELLO_WORLD_BF_PROG) 
+    commands = Checker.has_matching_brackets(HELLO_WORLD_BF_PROG) 
     if not isinstance(commands, List):
         print(f"Program contains a matching brackets error:\n {commands}", file=sys.stderr)
         sys.exit(1)
